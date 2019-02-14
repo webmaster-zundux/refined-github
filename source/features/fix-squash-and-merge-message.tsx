@@ -9,7 +9,9 @@ function init() {
 
 	button.addEventListener('click', () => {
 		const description = select('.comment-form-textarea[name=\'pull_request[body]\']').textContent;
-		select<HTMLTextAreaElement>('#merge_message_field').value = description;
+		const field = select<HTMLTextAreaElement>('#merge_message_field')
+		field.value = description;
+		field.dispatchEvent(new Event('input')); // Update field height
 	});
 }
 

@@ -50,6 +50,8 @@ function addCoAuthors() {
 	addendum.delete(getOP());
 
 	field.value += '\n\n' + [...addendum.values()].join('\n');
+
+	field.dispatchEvent(new Event('input')); // Update field height
 }
 
 async function init() {
