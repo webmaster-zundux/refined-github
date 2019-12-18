@@ -1,24 +1,29 @@
+import './show-names.css';
 import React from 'dom-chef';
 import select from 'select-dom';
 import * as api from '../libs/api';
 import features from '../libs/features';
-import {getUsername} from '../libs/utils';
+import {getUsername, compareNames} from '../libs/utils';
+import onNewsfeedLoad from '../libs/on-newsfeed-load';
 
-async function init() {
-	const usernameElements = select.all('.js-discussion .author:not(.rgh-fullname):not([href*="/apps/"])');
+async function init(): Promise<false | void> {
+	const usernameElements = select.all([
+		'.js-discussion a.author:not(.rgh-fullname):not([href*="/apps/"]):not([href*="/marketplace/"]):not([data-hovercard-type="organization"])', // `a` selector needed to skip commits by non-GitHub users.
+		'#dashboard a.text-bold[data-hovercard-type="user"]:not(.rgh-fullname)' // On dashboard `.text-bold` is required to not fetch avatars.
+	].join());
 
-	const usernames = new Set();
+	const usernames = new Set<string>();
 	const myUsername = getUsername();
-	for (const el of usernameElements) {
-		el.classList.add('rgh-fullname');
-		const username = el.textContent;
-		if (username !== myUsername && username !== 'ghost') {
-			usernames.add(el.textContent);
+	for (const element of usernameElements) {
+		element.classList.add('rgh-fullname');
+		const username = element.textContent;
+		if (username && username !== myUsername && username !== 'ghost') {
+			usernames.add(element.textContent!);
 		}
 
 		// Drop 'commented' label to shorten the copy
-		const commentedNode = el.parentNode.nextSibling as Text;
-		if (commentedNode && commentedNode.textContent.includes('commented')) {
+		const commentedNode = element.parentNode!.nextSibling;
+		if (commentedNode && commentedNode.textContent!.includes('commented')) {
 			commentedNode.remove();
 		}
 	}
@@ -28,31 +33,54 @@ async function init() {
 	}
 
 	const names = await api.v4(
-		'{' +
-			[...usernames].map(user =>
-				api.escapeKey(user) + `: user(login: "${user}") {name}`
-			) +
-		'}'
+		[...usernames].map(user =>
+			api.escapeKey(user) + `: user(login: "${user}") {name}`
+		).join()
 	);
 
-	for (const usernameEl of usernameElements) {
-		const {name = ''} = names[api.escapeKey(usernameEl.textContent)] || {};
-		if (name) {
+	for (const usernameElement of usernameElements) {
+		const username = usernameElement.textContent!;
+		const userKey = api.escapeKey(username);
+
+		// For the currently logged in user, `names[userKey]` would not be present.
+		if (names[userKey] && names[userKey].name) {
 			// If it's a regular comment author, add it outside <strong>
 			// otherwise it's something like "User added some commits"
-			const insertionPoint = usernameEl.parentElement.tagName === 'STRONG' ? usernameEl.parentElement : usernameEl;
-			insertionPoint.after(' (', <bdo>{name}</bdo>, ') ');
+			if (compareNames(username, names[userKey].name)) {
+				usernameElement.textContent = names[userKey].name;
+			} else {
+				const insertionPoint = usernameElement.parentElement!.tagName === 'STRONG' ? usernameElement.parentElement! : usernameElement;
+				insertionPoint.after(
+					' (',
+					<bdo className="css-truncate">
+						<span className="css-truncate-target" style={{maxWidth: '200px'}}>
+							{names[userKey].name}
+						</span>
+					</bdo>,
+					') '
+				);
+			}
 		}
 	}
 }
 
 features.add({
-	id: 'show-names',
+	id: __featureName__,
+	description: 'Adds the real name of users by their usernames.',
+	screenshot: 'https://user-images.githubusercontent.com/1402241/62075835-5f82ce00-b270-11e9-91eb-4680b70cb3cb.png',
 	include: [
-		features.isPR,
-		features.isIssue,
-		features.isCommit,
-		features.isDiscussion
+		features.isDashboard
+	],
+	load: features.onDomReady,
+	init: () => onNewsfeedLoad(init)
+});
+
+features.add({
+	id: __featureName__,
+	description: false,
+	screenshot: false,
+	include: [
+		features.hasComments
 	],
 	load: features.onNewComments,
 	init

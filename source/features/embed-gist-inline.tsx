@@ -1,18 +1,19 @@
 import React from 'dom-chef';
+import domify from 'doma';
 import select from 'select-dom';
-import domify from '../libs/domify';
 import features from '../libs/features';
+import {isFirefox} from '../libs/utils';
 
-const isGist = link =>
+const isGist = (link: HTMLAnchorElement): boolean =>
 	!link.pathname.includes('.') && // Exclude links to embed files
 	(
-		link.hostname.startsWith('gist.') ||
+		(link.hostname.startsWith('gist.') && link.pathname.includes('/', 1)) || // Exclude user links
 		link.pathname.startsWith('gist/')
 	);
 
-const isOnlyChild = link => link.textContent.trim() === link.parentNode.textContent.trim();
+const isOnlyChild = (link: HTMLAnchorElement): boolean => link.textContent!.trim() === link.parentNode!.textContent!.trim();
 
-async function embedGist(link) {
+async function embedGist(link: HTMLAnchorElement): Promise<void> {
 	const info = <em> (loading)</em>;
 	link.after(info);
 
@@ -20,13 +21,13 @@ async function embedGist(link) {
 		const response = await fetch(`${link.href}.json`);
 		const gistData = await response.json();
 
-		const files = domify(gistData.div).firstElementChild;
+		const files = domify.one(gistData.div)!;
 		const fileCount = files.children.length;
 
 		if (fileCount > 1) {
 			info.textContent = ` (${fileCount} files)`;
 		} else {
-			link.parentNode.attachShadow({mode: 'open'}).append(
+			link.parentElement!.attachShadow({mode: 'open'}).append(
 				<style>{`
 					.gist .gist-data {
 						max-height: 16em;
@@ -38,21 +39,26 @@ async function embedGist(link) {
 			);
 		}
 	} catch {
-		info.remove(' (embed failed)');
+		info.remove();
 	}
 }
 
-function init() {
-	select.all('.js-comment-body p a:only-child')
+function init(): void {
+	select.all<HTMLAnchorElement>('.js-comment-body p a:only-child')
 		.filter(item => isGist(item) && isOnlyChild(item))
 		.forEach(embedGist);
 }
 
 features.add({
-	id: 'embed-gist-inline',
+	id: __featureName__,
+	description: 'Embeds linked gists. Not supported by Firefox.',
+	screenshot: 'https://user-images.githubusercontent.com/6978877/33911900-c62ee968-df8b-11e7-8685-506ffafc60b4.PNG',
 	include: [
-		features.isPR,
-		features.isIssue
+		features.hasComments
+	],
+	exclude: [
+		// https://github.com/sindresorhus/refined-github/issues/2022
+		() => isFirefox
 	],
 	load: features.onAjaxedPages,
 	init

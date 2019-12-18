@@ -1,7 +1,7 @@
 import select from 'select-dom';
-import * as cache from './cache';
+import cache from 'webext-storage-cache';
 import * as api from './api';
-import {getOwnerAndRepo} from './utils';
+import {getRepoURL} from './utils';
 
 // This regex should match all of these combinations:
 // "This branch is even with master."
@@ -10,32 +10,21 @@ import {getOwnerAndRepo} from './utils';
 // "This branch is 1 commit ahead, 27 commits behind master."
 const branchInfoRegex = /([^ ]+)\.$/;
 
-function parseBranchFromDom() {
+function parseBranchFromDom(): string | undefined {
 	if (select.exists('.repohead h1 .octicon-repo-forked')) {
 		return; // It's a fork, no "default branch" info available #1132
 	}
 
 	// We can find the name in the infobar, available in folder views
-	const branchInfo = select('.branch-infobar');
-	if (!branchInfo) {
-		return;
-	}
-
-	// Parse the infobar
-	const [, branchName = undefined] = branchInfo.textContent.trim().match(branchInfoRegex) || [];
-	return branchName; // `string` or undefined
+	const branchInfo = select('.branch-infobar')?.textContent?.trim();
+	return branchInfoRegex.exec(branchInfo!)?.[1];
 }
 
-async function fetchFromApi(user, repo) {
-	const response = await api.v3(`repos/${user}/${repo}`);
-	if (response && response.default_branch) {
-		return response.default_branch;
-	}
+async function fetchFromApi(): Promise<string> {
+	const response = await api.v3(`repos/${getRepoURL()}`);
+	return response.default_branch as string;
 }
 
-export default function () {
-	const {ownerName, repoName} = getOwnerAndRepo();
-	return cache.getSet(`default-branch:${ownerName}/${repoName}`,
-		() => parseBranchFromDom() || fetchFromApi(ownerName, repoName)
-	);
-}
+export default cache.function(async () => parseBranchFromDom() ?? fetchFromApi(), {
+	cacheKey: () => 'default-branch:' + getRepoURL()
+});

@@ -2,12 +2,12 @@ import React from 'dom-chef';
 import {wrapAll} from './dom-utils';
 
 // Wrap a list of elements with BtnGroup + ensure each has BtnGroup-item
-export const groupButtons = (buttons: Element[]) => {
+export const groupButtons = (buttons: Element[]): Element => {
 	// Ensure every button has this class
 	for (let button of buttons) {
 		if (!button.matches('.btn')) {
-			button.classList.add('BtnGroup-form');
-			button = button.querySelector('.btn');
+			button.classList.add('BtnGroup-parent');
+			button = button.querySelector('.btn')!;
 		}
 
 		button.classList.add('BtnGroup-item');
@@ -18,7 +18,7 @@ export const groupButtons = (buttons: Element[]) => {
 
 	// If it doesn't exist, wrap them in a new group
 	if (!group) {
-		group = <div class="BtnGroup"/>;
+		group = <div className="BtnGroup"/>;
 		wrapAll(buttons, group);
 	}
 
@@ -26,16 +26,16 @@ export const groupButtons = (buttons: Element[]) => {
 };
 
 // Find immediate `.btn` siblings of `button` and wrap them with groupButtons
-export const groupSiblings = (button: Element) => {
+export const groupSiblings = (button: Element): Element => {
 	const siblings = [button];
-	let prev = button.previousElementSibling;
-	while (prev && prev.classList.contains('btn')) {
-		siblings.unshift(prev);
-		prev = prev.previousElementSibling;
+	let previous = button.previousElementSibling;
+	while (previous?.classList.contains('btn')) {
+		siblings.unshift(previous);
+		previous = previous.previousElementSibling;
 	}
 
 	let next = button.nextElementSibling;
-	while (next && next.classList.contains('btn')) {
+	while (next?.classList.contains('btn')) {
 		siblings.push(next);
 		next = next.nextElementSibling;
 	}

@@ -1,47 +1,16 @@
-import OptionsSync from 'webext-options-sync';
-import domainPermissionToggle from 'webext-domain-permission-toggle';
-import dynamicContentScripts from 'webext-dynamic-content-scripts';
-import './libs/cache';
+import 'webext-dynamic-content-scripts';
+import addDomainPermissionToggle from 'webext-domain-permission-toggle';
+import './options-storage';
 
-// Define defaults
-new OptionsSync().define({
-	defaults: {
-		disabledFeatures: '',
-		customCSS: '',
-		personalToken: '',
-		logging: false
-	},
-	migrations: [
-		options => {
-			options.disabledFeatures = (options.disabledFeatures as string)
-				.replace('display-issue-suggestions', '') // #1611
-				.replace('open-all-selected', 'batch-open-issues') // #1402
-				.replace('copy-file-path', '') // #1628
-				.replace('bypass-checks-travis', 'bypass-checks') // #1693
-				.replace(/^add-(.+)-to-(profile|comments|comment-fields|emojis)$/, '$2-$1') // #1719
-				.replace(/^add-/, '') // #1719
-				.replace('milestone-navigation', '') // #1767
-				.replace('op-labels', '') // #1776
-				.replace('delete-fork-link', '') // #1791
-				.replace('exclude-filter-shortcut', '') // #1831
-			; // eslint-disable-line semi-style
-		},
-		OptionsSync.migrations.removeUnused
-	]
-});
-
-browser.runtime.onMessage.addListener(async message => {
-	if (!message || message.action !== 'openAllInTabs') {
-		return;
-	}
-
-	const [currentTab] = await browser.tabs.query({currentWindow: true, active: true});
-	for (const [i, url] of message.urls.entries()) {
-		browser.tabs.create({
-			url,
-			index: currentTab.index + i + 1,
-			active: false
-		});
+browser.runtime.onMessage.addListener((message, {tab}) => {
+	if (Array.isArray(message?.openUrls)) {
+		for (const [i, url] of (message.openUrls as string[]).entries()) {
+			browser.tabs.create({
+				url,
+				index: tab!.index + i + 1,
+				active: false
+			});
+		}
 	}
 });
 
@@ -68,5 +37,4 @@ browser.runtime.onInstalled.addListener(async ({reason}) => {
 });
 
 // GitHub Enterprise support
-dynamicContentScripts.addToFutureTabs();
-domainPermissionToggle.addContextMenu();
+addDomainPermissionToggle();

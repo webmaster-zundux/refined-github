@@ -1,23 +1,18 @@
-/*
-This feature adds infinite scrolling to:
-- News feed on the Dashboard
-*/
-
 import select from 'select-dom';
 import debounce from 'debounce-fn';
 import features from '../libs/features';
 import observeEl from '../libs/simplified-element-observer';
 
-let btn;
+let button: HTMLButtonElement | undefined;
 
 const loadMore = debounce(() => {
-	btn.click();
-	btn.textContent = 'Loading...';
+	button!.click();
+	button!.textContent = 'Loading...';
 
 	// If GH hasn't loaded the JS, the click will not load anything.
 	// We can detect if it worked by looking at the button's state,
 	// and then trying again (auto-debounced)
-	if (!btn.disabled) {
+	if (!button!.disabled) {
 		loadMore();
 	}
 }, {wait: 200});
@@ -33,9 +28,9 @@ const inView = new IntersectionObserver(([{isIntersecting}]) => {
 	rootMargin: '500px' // https://github.com/sindresorhus/refined-github/pull/505#issuecomment-309273098
 });
 
-const findButton = () => {
+const findButton = (): void => {
 	// If the old button is still there, leave
-	if (btn && document.contains(btn)) {
+	if (button && document.contains(button)) {
 		return;
 	}
 
@@ -43,13 +38,13 @@ const findButton = () => {
 	inView.disconnect();
 
 	// Watch the new button, or stop everything
-	btn = select('.ajax-pagination-btn');
-	if (btn) {
-		inView.observe(btn);
+	button = select<HTMLButtonElement>('.ajax-pagination-btn')!;
+	if (button) {
+		inView.observe(button);
 	}
 };
 
-function init() {
+function init(): void {
 	const form = select('.ajax-pagination-form');
 	if (form) {
 		// If GH hasn't loaded the JS,
@@ -61,7 +56,9 @@ function init() {
 }
 
 features.add({
-	id: 'infinite-scroll',
+	id: __featureName__,
+	description: 'Automagically expands the newsfeed when you scroll down.',
+	screenshot: false,
 	include: [
 		features.isDashboard
 	],

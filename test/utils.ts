@@ -1,48 +1,55 @@
 import test from 'ava';
 import './fixtures/globals';
-import * as utils from '../source/libs/utils';
+import {
+	getDiscussionNumber,
+	getOwnerAndRepo,
+	getRepoPath,
+	getReference,
+	parseTag,
+	compareNames
+} from '../source/libs/utils';
 
 test('getDiscussionNumber', t => {
-	const pairs = new Map<string, boolean|string>([
+	const pairs = new Map<string, string | undefined>([
 		[
 			'https://github.com',
-			false
+			undefined
 		],
 		[
 			'https://gist.github.com/',
-			false
+			undefined
 		],
 		[
 			'https://github.com/settings/developers',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/notifications/notifications',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/refined-github',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/refined-github/',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/refined-github/blame/master/package.json',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/refined-github/commit/57bf4',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/refined-github/compare/test-branch?quick_pull=0',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/refined-github/tree/master/distribution',
-			false
+			undefined
 		],
 		[
 			'https://github.com/sindresorhus/refined-github/pull/148/commits/0019603b83bd97c2f7ef240969f49e6126c5ec85',
@@ -66,17 +73,17 @@ test('getDiscussionNumber', t => {
 		],
 		[
 			'https://github.com/sindresorhus/refined-github/issues',
-			false
+			undefined
 		]
 	]);
 	for (const [url, result] of pairs) {
 		location.href = url;
-		t.is(result, utils.getDiscussionNumber());
+		t.is(result, getDiscussionNumber());
 	}
 });
 
 test('getRepoPath', t => {
-	const pairs = new Map<string, string>([
+	const pairs = new Map<string, string | undefined>([
 		[
 			'https://github.com',
 			undefined
@@ -121,24 +128,79 @@ test('getRepoPath', t => {
 
 	for (const [url, result] of pairs) {
 		location.href = url;
-		t.is(result, utils.getRepoPath());
+		t.is(result, getRepoPath());
 	}
 });
 
 test('getOwnerAndRepo', t => {
-	const ownerAndRepo = {
-		'https://github.com/sindresorhus/refined-github/pull/148': {
-			ownerName: 'sindresorhus',
-			repoName: 'refined-github'
-		},
-		'https://github.com/DrewML/GifHub/blob/master/.gitignore': {
-			ownerName: 'DrewML',
-			repoName: 'GifHub'
-		}
+	location.href = 'https://github.com/sindresorhus/refined-github/pull/148';
+	t.deepEqual(getOwnerAndRepo(), {
+		ownerName: 'sindresorhus',
+		repoName: 'refined-github'
+	});
+
+	location.href = 'https://github.com/DrewML/GifHub/blob/master/.gitignore';
+	t.deepEqual(getOwnerAndRepo(), {
+		ownerName: 'DrewML',
+		repoName: 'GifHub'
+	});
+});
+
+test('getReference', t => {
+	const references: {
+		[url: string]: string | undefined;
+	} = {
+		'https://github.com/sindresorhus/refined-github': undefined,
+		'https://github.com/sindresorhus/refined-github/': undefined,
+
+		'https://github.com/sindresorhus/refined-github/tree/master': 'master',
+		'https://github.com/sindresorhus/refined-github/tree/62007c8b944808d1b46d42d5e22fa65883d1eaec': '62007c8b944808d1b46d42d5e22fa65883d1eaec',
+
+		'https://github.com/sindresorhus/refined-github/compare': undefined,
+		'https://github.com/sindresorhus/refined-github/compare/master': undefined,
+		'https://github.com/sindresorhus/refined-github/compare/62007c8b944808d1b46d42d5e22fa65883d1eaec': undefined,
+		'https://github.com/sindresorhus/refined-github/compare/master...test': undefined,
+
+		'https://github.com/sindresorhus/refined-github/commits': undefined,
+		'https://github.com/sindresorhus/refined-github/commits/master': 'master',
+		'https://github.com/sindresorhus/refined-github/commits/62007c8b944808d1b46d42d5e22fa65883d1eaec': '62007c8b944808d1b46d42d5e22fa65883d1eaec',
+
+		'https://github.com/sindresorhus/refined-github/releases/tag/v1.2.3': undefined,
+
+		'https://github.com/sindresorhus/refined-github/blob/master/readme.md': 'master',
+		'https://github.com/sindresorhus/refined-github/blob/62007c8b944808d1b46d42d5e22fa65883d1eaec/readme.md': '62007c8b944808d1b46d42d5e22fa65883d1eaec',
+
+		'https://github.com/sindresorhus/refined-github/wiki/topic': undefined,
+
+		'https://github.com/sindresorhus/refined-github/blame/master/readme.md': 'master',
+		'https://github.com/sindresorhus/refined-github/blame/62007c8b944808d1b46d42d5e22fa65883d1eaec/readme.md': '62007c8b944808d1b46d42d5e22fa65883d1eaec',
+
+		'https://github.com/sindresorhus/refined-github/pull/123': undefined,
+		'https://github.com/sindresorhus/refined-github/pull/2105/commits/': undefined,
+		'https://github.com/sindresorhus/refined-github/pull/2105/commits/9df50080dfddee5f7a2a6a1dc4465166339fedfe': undefined
 	};
 
-	Object.keys(ownerAndRepo).forEach(url => {
+	Object.keys(references).forEach(url => {
 		location.href = url;
-		t.deepEqual(ownerAndRepo[url], utils.getOwnerAndRepo());
+		t.is(references[url], getReference(), url);
 	});
+});
+
+test('parseTag', t => {
+	t.deepEqual(parseTag(''), {namespace: '', version: ''});
+	t.deepEqual(parseTag('1.2.3'), {namespace: '', version: '1.2.3'});
+	t.deepEqual(parseTag('@1.2.3'), {namespace: '', version: '1.2.3'});
+	t.deepEqual(parseTag('hi@1.2.3'), {namespace: 'hi', version: '1.2.3'});
+	t.deepEqual(parseTag('hi/you@1.2.3'), {namespace: 'hi/you', version: '1.2.3'});
+	t.deepEqual(parseTag('@hi/you@1.2.3'), {namespace: '@hi/you', version: '1.2.3'});
+});
+
+test('compareNames', t => {
+	t.true(compareNames('johndoe', 'John Doe'));
+	t.true(compareNames('john-doe', 'John Doe'));
+	t.true(compareNames('john-wdoe', 'John W. Doe'));
+	t.true(compareNames('john-doe-jr', 'John Doe Jr.'));
+	t.true(compareNames('nicolo', 'Nicolò'));
+	t.false(compareNames('dotconnor', 'Connor Love'));
+	t.false(compareNames('fregante ', 'Federico Brigante'));
 });

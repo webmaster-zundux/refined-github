@@ -1,52 +1,64 @@
-/*
-Access a repository’s releases using the Releases tab or by pressing g r.
-https://cloud.githubusercontent.com/assets/170270/13136797/16d3f0ea-d64f-11e5-8a45-d771c903038f.png
-
-The tab isn’t shown if there are no releases.
-*/
-
+import cache from 'webext-storage-cache';
 import React from 'dom-chef';
 import select from 'select-dom';
+import elementReady from 'element-ready';
+import tagIcon from 'octicon/tag.svg';
 import features from '../libs/features';
-import * as icons from '../libs/icons';
-import * as cache from '../libs/cache';
-import {getRepoURL} from '../libs/utils';
-import {safeElementReady} from '../libs/dom-utils';
+import * as api from '../libs/api';
+import {appendBefore} from '../libs/dom-utils';
+import {getRepoURL, getRepoGQL} from '../libs/utils';
 import {isRepoRoot, isReleasesOrTags} from '../libs/page-detect';
 
 const repoUrl = getRepoURL();
-const repoKey = `releases-count:${repoUrl}`;
+const cacheKey = `releases-count:${repoUrl}`;
 
-// Get as soon as possible, to have it ready before the first paint
-const cached = cache.get(repoKey);
-
-function updateReleasesCount() {
+function parseCountFromDom(): number | void {
 	if (isRepoRoot()) {
-		const releasesCountEl = select('.numbers-summary a[href$="/releases"] .num');
-		const releasesCount = Number(releasesCountEl ? releasesCountEl.textContent.replace(/,/g, '') : 0);
-		cache.set(repoKey, releasesCount, 3);
-		return releasesCount;
+		const releasesCountElement = select('.numbers-summary a[href$="/releases"] .num');
+		return Number(releasesCountElement ? releasesCountElement.textContent!.replace(/,/g, '') : 0);
 	}
-
-	return cached;
 }
 
-async function init() {
-	await safeElementReady('.pagehead + *'); // Wait for the tab bar to be loaded
-	const count = await updateReleasesCount();
+async function fetchFromApi(): Promise<number | undefined> {
+	const {repository} = await api.v4(`
+		repository(${getRepoGQL()}) {
+			refs(refPrefix: "refs/tags/") {
+				totalCount
+			}
+		}
+	`);
+
+	return repository.refs.totalCount;
+}
+
+const getReleaseCount = cache.function(async () => parseCountFromDom() ?? fetchFromApi(), {
+	expiration: 3,
+	cacheKey: () => cacheKey
+});
+
+async function init(): Promise<false | void> {
+	// Always prefer the information in the DOM
+	if (isRepoRoot()) {
+		await cache.delete(cacheKey);
+	}
+
+	const count = await getReleaseCount();
 	if (count === 0) {
 		return false;
 	}
 
 	const releasesTab = (
-		<a href={`/${repoUrl}/releases`} class="reponav-item" data-hotkey="g r">
-			{icons.tag()}
+		<a href={`/${repoUrl}/releases`} className="reponav-item" data-hotkey="g r">
+			{tagIcon()}
 			<span> Releases </span>
-			{count === undefined ? '' : <span class="Counter">{count}</span>}
+			{count === undefined ? '' : <span className="Counter">{count}</span>}
 		</a>
 	);
-	select('.reponav-dropdown').before(releasesTab);
 
+	await elementReady('.pagehead + *'); // Wait for the tab bar to be loaded
+	appendBefore('.reponav', '.reponav-dropdown, [href$="settings"]', releasesTab);
+
+	// Update "selected" tab mark
 	if (isReleasesOrTags()) {
 		const selected = select('.reponav-item.selected');
 		if (selected) {
@@ -54,16 +66,18 @@ async function init() {
 		}
 
 		releasesTab.classList.add('js-selected-navigation-item', 'selected');
-		releasesTab.setAttribute('data-selected-links', 'repo_releases'); // Required for ajaxLoad
+		releasesTab.dataset.selectedLinks = 'repo_releases'; // Required for ajaxLoad
 	}
 }
 
 features.add({
-	id: 'releases-tab',
+	id: __featureName__,
+	description: 'Adds a `Releases` tab and a keyboard shortcut: `g` `r`.',
+	screenshot: 'https://cloud.githubusercontent.com/assets/170270/13136797/16d3f0ea-d64f-11e5-8a45-d771c903038f.png',
 	include: [
 		features.isRepo
 	],
-	load: features.onAjaxedPages,
+	load: features.nowAndOnAjaxedPages,
 	shortcuts: {
 		'g r': 'Go to Releases'
 	},

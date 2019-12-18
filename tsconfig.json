@@ -1,16 +1,14 @@
 {
 	"extends": "@sindresorhus/tsconfig",
 	"compilerOptions": {
-		"target": "esnext",
-		// "noEmit": true, // Useful when running `tsc` directly
-
-		// TODO: Get all these removed
-		"allowJs": true,
-		"declaration": false, // Needed because of `allowJs`
-		"strict": false,
-		"noImplicitReturns": false,
+		"target": "es2018",
+		"declaration": false,
+		"esModuleInterop": true
 	},
 	"include": [
-		"source"
+		"source",
+		"test",
+		"octicon-svg-loader.ts",
+		"webpack.config.ts"
 	]
 }

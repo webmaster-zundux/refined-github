@@ -1,22 +1,25 @@
 import select from 'select-dom';
 import features from '../libs/features';
 
-function init() {
-	// Get repositories link from user profile navigation
-	const link = select<HTMLAnchorElement>('.user-profile-nav a[href*="tab=repositories"]');
+function init(): void {
+	const links = select.all<HTMLAnchorElement>([
+		'.user-profile-nav [href$="tab=repositories"]', // "Your repositories" in header dropdown
+		'#user-links [href$="tab=repositories"]', // "Repositories" tab on user profile
+		'.orgnav .pagehead-tabs-item:first-child', // "Repositories" tab on organization profile
+		'[data-hovercard-type="organization"]' // Organization name on repo header + organization list on user profile
+	].join());
 
-	if (!link) {
-		return false;
+	for (const link of links) {
+		const search = new URLSearchParams(link.search);
+		search.set('type', 'source');
+		link.search = String(search);
 	}
-
-	link.search += '&type=source';
 }
 
 features.add({
-	id: 'set-default-repositories-type-to-sources',
-	include: [
-		features.isUserProfile
-	],
+	id: __featureName__,
+	description: 'Hides forks and archived repos from profiles (but they can still be shown.)',
+	screenshot: 'https://user-images.githubusercontent.com/1402241/45133648-fe21be80-b1c8-11e8-9052-e38cb443efa9.png',
 	load: features.onAjaxedPages,
 	init
 });

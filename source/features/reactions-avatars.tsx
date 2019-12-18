@@ -1,47 +1,64 @@
-/*
-Reaction avatars showing who reacted to a comment.
-
-Feature testable on
-https://github.com/babel/babel/pull/3646
-https://github.com/dominictarr/event-stream/issues/116
-*/
-
+import './reactions-avatars.css';
 import React from 'dom-chef';
 import select from 'select-dom';
-import debounce from 'debounce-fn';
-import {timerIntervalometer} from 'intervalometer';
 import features from '../libs/features';
-import {getUsername, flatZip} from '../libs/utils';
+import {getUsername, flatZip, isFirefox} from '../libs/utils';
+import onUpdatableContentUpdate from '../libs/on-updatable-content-update';
 
 const arbitraryAvatarLimit = 36;
 const approximateHeaderLength = 3; // Each button header takes about as much as 3 avatars
 
-function getParticipants(container) {
+type Participant = {
+	container: HTMLElement;
+	username: string;
+	imageUrl: string;
+};
+
+function getParticipants(container: HTMLElement): Participant[] {
 	const currentUser = getUsername();
-	return container.getAttribute('aria-label')
+	const users = container.getAttribute('aria-label')!
 		.replace(/ reacted with.*/, '')
 		.replace(/,? and /, ', ')
 		.replace(/, \d+ more/, '')
-		.replace(/\[bot\]/g, '')
-		.split(', ')
-		.filter(username => username !== currentUser)
-		.map(username => ({
-			container,
-			username
-		}));
+		.split(', ');
+
+	const participants = [];
+	for (const username of users) {
+		if (username === currentUser) {
+			continue;
+		}
+
+		const cleanName = username.replace('[bot]', '');
+
+		// Find image on page. Saves a request and a redirect + add support for bots
+		const existingAvatar = select<HTMLImageElement>(`[alt="@${cleanName}"]`);
+		if (existingAvatar) {
+			participants.push({container, username, imageUrl: existingAvatar.src});
+			continue;
+		}
+
+		// If it's not a bot, use a shortcut URL #2125
+		if (cleanName === username) {
+			const imageUrl = `/${username}.png?size=${window.devicePixelRatio * 20}`;
+			participants.push({container, username, imageUrl});
+		}
+	}
+
+	return participants;
 }
 
-function add() {
+function init(): void {
 	for (const list of select.all('.has-reactions .comment-reactions-options:not(.rgh-reactions)')) {
 		const avatarLimit = arbitraryAvatarLimit - (list.children.length * approximateHeaderLength);
 
-		const participantByReaction = [].map.call(list.children, getParticipants);
+		const participantByReaction = [...list.children as HTMLCollectionOf<HTMLElement>].map(getParticipants);
 		const flatParticipants = flatZip(participantByReaction, avatarLimit);
 
-		for (const participant of flatParticipants) {
-			participant.container.append(
-				<a href={`/${participant.username}`}>
-					<img src={`/${participant.username}.png?size=${window.devicePixelRatio * 20}`}/>
+		for (const {container, username, imageUrl} of flatParticipants) {
+			container.append(
+				// Without this, Firefox will follow the link instead of submitting the reaction button
+				<a href={isFirefox ? undefined : `/${username}`}>
+					<img src={imageUrl} />
 				</a>
 			);
 		}
@@ -52,33 +69,18 @@ function add() {
 		if (flatParticipants.length > avatarLimit * 0.9) {
 			list.classList.add('rgh-reactions-near-limit');
 		}
+
+		onUpdatableContentUpdate(list.closest<HTMLElement>('.js-updatable-content')!, init);
 	}
 }
 
-function init() {
-	add();
-
-	// GitHub receives update messages via WebSocket, which seem to trigger
-	// a fetch for the updated content. When the content is actually updated
-	// in the DOM there are no further events, so we have to look for changes
-	// every 300ms for the 3 seconds following the last message.
-	// This should be lighter than using MutationObserver on the whole page.
-	const updater = timerIntervalometer(add, 300);
-	const cancelInterval = debounce(updater.stop, {wait: 3000});
-	window.addEventListener('socket:message', () => {
-		updater.start();
-		cancelInterval();
-	});
-}
-
 features.add({
-	id: 'reactions-avatars',
+	id: __featureName__,
+	description: 'Adds reaction avatars showing *who* reacted to a comment',
+	screenshot: 'https://user-images.githubusercontent.com/1402241/34438653-f66535a4-ecda-11e7-9406-2e1258050cfa.png',
 	include: [
-		features.isPR,
-		features.isIssue,
-		features.isCommit,
-		features.isDiscussion
+		features.hasComments
 	],
-	load: features.onAjaxedPages,
+	load: features.onNewComments,
 	init
 });
